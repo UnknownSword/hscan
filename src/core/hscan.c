@@ -1,23 +1,28 @@
 #include <core/hscan.h>
-
 #define kalagh_key 0x2383
 
-hash_t (*hscan_file)(int, size_t) = hscan_file_default;
+const char* hscan_input_name = "./";
+ssize_t		hscan_output_size = 16;
+size_t		hscan_max_width = 4;
+bool		hscan_show_space = 1;
+bool		hscan_show_color = 1;
+
+hash_t (*hscan_file)(int) = hscan_file_default;
 hash_t (*hscan_merge)(hash_t, hash_t) = hscan_merge_default;
 
-hash_t hscan_file_default(int fd, size_t len){
-	hash_t h = { .output_size = len,
-				 .output = calloc(len, sizeof(uint32_t)) };
+hash_t hscan_file_default(int fd){
+	hash_t h = { .output_size = hscan_output_size,
+				 .output = calloc(hscan_output_size, sizeof(uint32_t)) };
 	if(h.output == NULL){
 		h.output_size = 0;
 		return h;
 	}
-	srand(kalagh_key + len);
-	for(size_t i=0 ; i < len ; i++){
+	srand(kalagh_key + hscan_output_size);
+	for(size_t i=0 ; i < hscan_output_size ; i++){
 		h.output[i] = rand() ;
 	}
-	for(size_t i=0 ; i < len ; i++){
-		h.output[ rand() % len ] += rand();
+	for(size_t i=0 ; i < hscan_output_size ; i++){
+		h.output[ rand() % hscan_output_size ] += rand();
 	}
 	off_t res = file_size_beg(fd);
 	unsigned char c;
@@ -26,7 +31,7 @@ hash_t hscan_file_default(int fd, size_t len){
 		uint32_t x = c | ( c << 8 ) | ( c << 16 ) | ( c << 24 );
 		x ^= rand();
 		for(size_t i=0 ; i < ( c & 15 ) + ( ( c >> 4 ) & 15 ) + 8 ; i++){
-			h.output[rand() % len] += ( x * ( i + 2 ) ) ;
+			h.output[rand() % hscan_output_size] += ( x * ( i + 2 ) ) ;
 		}
 	}
 	return h;
@@ -45,19 +50,30 @@ hash_t hscan_merge_default(hash_t h1, hash_t h2){
 	return h1;
 }
 
-hash_t hscan_folder(sds_t* name, size_t len){
+hash_t hscan_folder(sds_t* name, int indent){
 	hash_t h = { .output_size = 0, .output = NULL };
 	DIR* dir = opendir(sds_data(name));
 	if(dir == NULL){
-		perror(sds_data(name));
+		sds_t* sds = sds_format(COL_RED "%*s[*] %s\n", indent, "", sds_data(name));
+		if(sds != NULL){
+			perror(sds_data(sds));
+			sds_destroy(sds);
+		}
+		else{
+			perror(sds_data(name));
+		}
 		return h;
 	}
-	h.output = calloc(len, sizeof(uint32_t));
+	h.output = calloc(hscan_output_size, sizeof(uint32_t));
 	if(h.output == NULL){
+		if(hscan_show_color)
+			fprintf(stderr, COL_RED, "%*s[*] %s: cant allocate memory\n", indent, "" , sds_data(name));
 		closedir(dir);
 		return h;
 	}
-	h.output_size = len;
+	if(hscan_show_color)
+		fprintf(stderr, COL_BLUE "%*s[+] %s\n", indent, "", sds_data(name));
+	h.output_size = hscan_output_size;
 	
 	struct dirent* entry;
 	
@@ -69,7 +85,7 @@ hash_t hscan_folder(sds_t* name, size_t len){
 			continue;
 		}
 		
-		size_t dname_len = strlen(entry->d_name);
+		size_t dname_hscan_output_len = strlen(entry->d_name);
 		if(!sds_push(name, entry->d_name)){
 			perror("sds");
 			break;
@@ -79,28 +95,30 @@ hash_t hscan_folder(sds_t* name, size_t len){
 		
 		if (lstat(sds_data(name), &st) == -1) {
 			perror(sds_data(name));
-			sds_pop(name, dname_len);
+			sds_pop(name, dname_hscan_output_len);
 			closedir(dir);
 			return h;
 		}
 		
 		if(S_ISDIR(st.st_mode)){
 			if(!sds_push(name, "/")){
-				sds_pop(name, dname_len);
+				sds_pop(name, dname_hscan_output_len);
 				continue;
 			}
-			h = hscan_merge(h, hscan_folder(name, len));
-			sds_pop(name, dname_len + 1);
+			h = hscan_merge(h, hscan_folder(name, indent + 2));
+			sds_pop(name, dname_hscan_output_len + 1);
 		}
 		else if(S_ISREG(st.st_mode)){
 			int fd = open(sds_data(name), O_RDONLY);
 			if(fd == -1){
-				sds_pop(name, dname_len);
+				sds_pop(name, dname_hscan_output_len);
 				continue;
 			}
-			h = hscan_merge(h, hscan_file(fd, len));
+			if(hscan_show_color)
+				fprintf(stderr, COL_GREEN "%*s[+] %s\n", indent + 2, "", entry->d_name);
+			h = hscan_merge(h, hscan_file(fd));
 			close(fd);
-			sds_pop(name, dname_len);
+			sds_pop(name, dname_hscan_output_len);
 		}
 	}
 	
@@ -108,8 +126,8 @@ hash_t hscan_folder(sds_t* name, size_t len){
 	return h;
 }
 
-hash_t hscan(const char* name, size_t len){
-	sds_t* sds = sds_fromstr(name);
+hash_t hscan(){
+	sds_t* sds = sds_fromstr(hscan_input_name);
 	hash_t h = { .output = NULL, .output_size = 0 };
 	if(sds_size(sds) == 0){
 		if(!sds_equal(sds, "./")){
@@ -123,7 +141,9 @@ hash_t hscan(const char* name, size_t len){
 			}
 		}
 	}
-	h = hscan_folder(sds, len);
+	h = hscan_folder(sds, 0);
+	if(hscan_show_color)
+		fprintf(stderr, COL_CYAN COL_BOLD COL_UNDERLINE "-> SCAN COMPELETED SUCCESSFULLY !" COL_RESET "\n");
 	sds_destroy(sds);
 	return h;
 }

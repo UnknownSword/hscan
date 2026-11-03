@@ -4,6 +4,6 @@
 #include <core/hscan.h>
 #include <utils/col.h>
 
-void show_output(hash_t, size_t, bool);
+void show_output(hash_t);
 
 #endif
