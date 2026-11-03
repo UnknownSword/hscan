@@ -127,23 +127,57 @@ hash_t hscan_folder(sds_t* name, int indent){
 }
 
 hash_t hscan(){
-	sds_t* sds = sds_fromstr(hscan_input_name);
 	hash_t h = { .output = NULL, .output_size = 0 };
-	if(sds_size(sds) == 0){
-		if(!sds_equal(sds, "./")){
-			return h;
+	if(hscan_input_name[0] == '\0'){
+		fprintf(stderr, COL_RED COL_BOLD COL_UNDERLINE "-> SCAN FAIL !\nREASON: NO INPUT FILE !\n" COL_RESET);
+		return h;
+	}
+	sds_t* sds = sds_fromstr(hscan_input_name);
+	
+	switch( file_type(sds_data(sds)) ){
+		case FILETYPE_FILE:
+			int fd = open(sds_data(sds), O_RDONLY);
+			if(fd == -1){
+				fprintf(stderr, "ERROR !\n");
+				perror(sds_data(sds));
+			}
+			else{
+				fprintf(stderr, COL_GREEN "[+] %s\n" COL_RESET, hscan_input_name);
+				h = hscan_file(fd);
+				close(fd);
+			}
+			break;
+		case FILETYPE_DIRECTORY:
+			if(sds_size(sds) == 0){
+				if(!sds_equal(sds, "./")){
+					return h;
+				}
+			}
+			else{
+				if(sds_data(sds)[sds_size(sds) - 1] != '/'){
+					if(!sds_push(sds, "/")){
+						return h;
+					}
+				}
+			}
+			h = hscan_folder(sds, 0);
+			break;
+		default:
+			//perror("");
+			break;
+	}
+	if(h.output == NULL){
+		if(hscan_show_color){
+			fprintf(stderr, COL_RED COL_BOLD COL_UNDERLINE "-> SCAN FAIL !\n");
+			perror("REASON");
+			fprintf(stderr, COL_RESET);
 		}
 	}
 	else{
-		if(sds_data(sds)[sds_size(sds) - 1] != '/'){
-			if(!sds_push(sds, "/")){
-				return h;
-			}
+		if(hscan_show_color){
+			fprintf(stderr, COL_CYAN COL_BOLD COL_UNDERLINE "-> SCAN COMPELETED SUCCESSFULLY !" COL_RESET "\n");
 		}
 	}
-	h = hscan_folder(sds, 0);
-	if(hscan_show_color)
-		fprintf(stderr, COL_CYAN COL_BOLD COL_UNDERLINE "-> SCAN COMPELETED SUCCESSFULLY !" COL_RESET "\n");
 	sds_destroy(sds);
 	return h;
 }

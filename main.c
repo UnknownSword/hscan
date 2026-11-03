@@ -9,14 +9,6 @@
 #include <core/hscan.h>
 #include <core/display.h>
 
-/*
-const char* inp_name = "./";
-ssize_t output_size = 16;
-size_t show_max_width = 4;
-bool show_space = 1;
-bool show_color = 1;
-*/
-
 void usage(char* prog_name);
 void handle_args(int, char**);
 
