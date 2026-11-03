@@ -6,6 +6,7 @@ ssize_t		hscan_output_size = 16;
 size_t		hscan_max_width = 4;
 bool		hscan_show_space = 1;
 bool		hscan_show_color = 1;
+size_t		hscan_line_number = 0;
 
 hash_t (*hscan_file)(int) = hscan_file_default;
 hash_t (*hscan_merge)(hash_t, hash_t) = hscan_merge_default;
@@ -132,14 +133,14 @@ hash_t hscan(){
 		fprintf(stderr, COL_RED COL_BOLD COL_UNDERLINE "-> SCAN FAIL !\nREASON: NO INPUT FILE !\n" COL_RESET);
 		return h;
 	}
-	sds_t* sds = sds_fromstr(hscan_input_name);
 	
-	switch( file_type(sds_data(sds)) ){
+	switch( file_type(hscan_input_name) ){
 		case FILETYPE_FILE:
-			int fd = open(sds_data(sds), O_RDONLY);
+			int fd = open(hscan_input_name, O_RDONLY);
 			if(fd == -1){
-				fprintf(stderr, "ERROR !\n");
-				perror(sds_data(sds));
+				fprintf(stderr, COL_RED COL_BOLD COL_UNDERLINE "ERROR !\n");
+				perror(hscan_input_name);
+				fprintf(stderr, COL_RESET);
 			}
 			else{
 				fprintf(stderr, COL_GREEN "[+] %s\n" COL_RESET, hscan_input_name);
@@ -148,19 +149,14 @@ hash_t hscan(){
 			}
 			break;
 		case FILETYPE_DIRECTORY:
-			if(sds_size(sds) == 0){
-				if(!sds_equal(sds, "./")){
+			sds_t* sds = sds_fromstr(hscan_input_name);
+			if(sds_data(sds)[sds_size(sds) - 1] != '/'){
+				if(!sds_push(sds, "/")){
 					return h;
 				}
 			}
-			else{
-				if(sds_data(sds)[sds_size(sds) - 1] != '/'){
-					if(!sds_push(sds, "/")){
-						return h;
-					}
-				}
-			}
 			h = hscan_folder(sds, 0);
+			sds_destroy(sds);
 			break;
 		default:
 			//perror("");
@@ -178,6 +174,5 @@ hash_t hscan(){
 			fprintf(stderr, COL_CYAN COL_BOLD COL_UNDERLINE "-> SCAN COMPELETED SUCCESSFULLY !" COL_RESET "\n");
 		}
 	}
-	sds_destroy(sds);
 	return h;
 }

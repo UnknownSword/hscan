@@ -11,8 +11,7 @@ BUILD_DIR    := build
 BIN_DIR      := bin
 
 MAIN_SRC     := main
-#BINARY       := $(BIN_DIR)/$(MAIN_SRC)
-BINARY       := ./hscan
+BINARY       := $(BIN_DIR)/$(MAIN_SRC)
 
 SRCS := $(shell find $(SRC_DIR) -name '*.cpp' -o -name '*.c')
 OBJS := $(SRCS:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
