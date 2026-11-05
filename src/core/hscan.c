@@ -89,13 +89,12 @@ hash_t hscan_folder(sds_t* name, int indent){
 	struct dirent* entry;
 	
 	while((entry = readdir(dir)) != NULL ){
-		if(	strcmp(entry->d_name, ".") == 0 ){
-			continue;
-		}
-		else if(strcmp(entry->d_name, "..") == 0){
+		if(	strcmp(entry->d_name, ".") == 0 ||
+			strcmp(entry->d_name, "..") == 0){
 			continue;
 		}
 		
+		int save_size = sds_size(name);
 		size_t dname_hscan_output_len = strlen(entry->d_name);
 		if(!sds_push(name, entry->d_name)){
 			perror("sds");
@@ -117,7 +116,8 @@ hash_t hscan_folder(sds_t* name, int indent){
 				continue;
 			}
 			h = hscan_merge(h, hscan_folder(name, indent + 2));
-			sds_pop(name, dname_hscan_output_len + 1);
+			//sds_pop(name, dname_hscan_output_len + 1);
+			sds_resize(name, save_size);
 		}
 		else if(S_ISREG(st.st_mode)){
 			int fd = open(sds_data(name), O_RDONLY);
