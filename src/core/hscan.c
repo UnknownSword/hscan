@@ -1,5 +1,4 @@
 #include <core/hscan.h>
-#define kalagh_key 0x2383
 
 const char* hscan_input_name = "./";
 ssize_t		hscan_output_size = 16;
@@ -18,22 +17,33 @@ hash_t hscan_file_default(int fd){
 		h.output_size = 0;
 		return h;
 	}
-	srand(kalagh_key + hscan_output_size);
+	off_t res = file_size_beg(fd);
+	srand(0x23ef83 + res);
 	for(size_t i=0 ; i < hscan_output_size ; i++){
-		h.output[i] = rand() ;
+		h.output[i] = rand() ^ ( rand() << 1 ) ;
 	}
 	for(size_t i=0 ; i < hscan_output_size ; i++){
 		h.output[ rand() % hscan_output_size ] += rand();
 	}
-	off_t res = file_size_beg(fd);
-	unsigned char c;
-	while(res-- > 0){
-		read(fd, &c, 1);
-		uint32_t x = c | ( c << 8 ) | ( c << 16 ) | ( c << 24 );
-		x ^= rand();
-		for(size_t i=0 ; i < ( c & 15 ) + ( ( c >> 4 ) & 15 ) + 8 ; i++){
-			h.output[rand() % hscan_output_size] += ( x * ( i + 2 ) ) ;
+	
+	char buffer[1024];
+	int bytes;
+	while( (bytes = read(fd, buffer, sizeof(buffer))) > 0 ){
+		uint32_t x = 0x23ef83 + res + bytes;
+		uint32_t y = x ^ ( ( x << 16 ) | ( x >> 16 ) );
+		for(int i=0 ; i < bytes ; i++){
+			x *= 137;
+			x += buffer[i];
+			h.output[y % h.output_size] += x + y;
+			y = ( ( x << 8 ) | ( x >> 24 ) ) + x;
 		}
+		
+	}
+	
+	if(bytes == -1){
+		free(h.output);
+		h.output_size = 0;
+		return h;
 	}
 	return h;
 }
@@ -42,7 +52,7 @@ hash_t hscan_merge_default(hash_t h1, hash_t h2){
 		return h2;
 	if(h2.output == NULL)
 		return h1;
-	srand(kalagh_key + h1.output_size + h2.output_size);
+	srand(0x23ef83 + h1.output_size + h2.output_size);
 	size_t len = (h1.output_size < h2.output_size ? h1.output_size : h2.output_size );
 	for(size_t i=0 ; i < len ; i++){
 		h1.output[i] += h2.output[rand() % h2.output_size];
