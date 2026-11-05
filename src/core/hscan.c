@@ -64,6 +64,7 @@ hash_t hscan_merge_default(hash_t h1, hash_t h2){
 hash_t hscan_folder(sds_t* name, int indent){
 	hash_t h = { .output_size = 0, .output = NULL };
 	DIR* dir = opendir(sds_data(name));
+	/*
 	if(dir == NULL){
 		sds_t* sds = sds_format(COL_RED "%*s[*] %s\n", indent, "", sds_data(name));
 		if(sds != NULL){
@@ -75,6 +76,7 @@ hash_t hscan_folder(sds_t* name, int indent){
 		}
 		return h;
 	}
+	*/
 	h.output = calloc(hscan_output_size, sizeof(uint32_t));
 	if(h.output == NULL){
 		if(hscan_show_color)
@@ -95,7 +97,6 @@ hash_t hscan_folder(sds_t* name, int indent){
 		}
 		
 		int save_size = sds_size(name);
-		size_t dname_hscan_output_len = strlen(entry->d_name);
 		if(!sds_push(name, entry->d_name)){
 			perror("sds");
 			break;
@@ -105,31 +106,30 @@ hash_t hscan_folder(sds_t* name, int indent){
 		
 		if (lstat(sds_data(name), &st) == -1) {
 			perror(sds_data(name));
-			sds_pop(name, dname_hscan_output_len);
+			sds_resize(name, save_size);
 			closedir(dir);
 			return h;
 		}
 		
 		if(S_ISDIR(st.st_mode)){
 			if(!sds_push(name, "/")){
-				sds_pop(name, dname_hscan_output_len);
+				sds_resize(name, save_size);
 				continue;
 			}
 			h = hscan_merge(h, hscan_folder(name, indent + 2));
-			//sds_pop(name, dname_hscan_output_len + 1);
 			sds_resize(name, save_size);
 		}
 		else if(S_ISREG(st.st_mode)){
 			int fd = open(sds_data(name), O_RDONLY);
 			if(fd == -1){
-				sds_pop(name, dname_hscan_output_len);
+				sds_resize(name, save_size);
 				continue;
 			}
 			if(hscan_show_color)
 				fprintf(stderr, COL_GREEN "%*s[+] %s\n", indent + 2, "", entry->d_name);
 			h = hscan_merge(h, hscan_file(fd));
 			close(fd);
-			sds_pop(name, dname_hscan_output_len);
+			sds_resize(name, save_size);
 		}
 	}
 	
