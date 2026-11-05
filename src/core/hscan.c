@@ -159,7 +159,13 @@ hash_t hscan(){
 			}
 			break;
 		case FILETYPE_DIRECTORY:
-			sds_t* sds = sds_fromstr(hscan_input_name);
+			char* pio = realpath(hscan_input_name, NULL);
+			if(pio == NULL){
+				perror("malloc");
+				break;
+			}
+			sds_t* sds = sds_fromstr(pio);
+			free(pio);
 			if(sds_data(sds)[sds_size(sds) - 1] != '/'){
 				if(!sds_push(sds, "/")){
 					return h;
